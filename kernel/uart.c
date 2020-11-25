@@ -85,6 +85,9 @@ uartintr(void)
 {
   while(1){
     int c = uartgetc();
+    if(c == 27){
+      break;
+    }
     if(c == -1)
       break;
     consoleintr(c);
