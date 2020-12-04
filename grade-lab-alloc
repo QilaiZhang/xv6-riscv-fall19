@@ -23,7 +23,7 @@ def test_alloctest():
 def test_usertests():
     r.run_qemu(shell_script([
         'usertests'
-    ]), timeout=300)
+    ]), timeout=150)
     r.match('^ALL TESTS PASSED$')
 
 run_tests()
