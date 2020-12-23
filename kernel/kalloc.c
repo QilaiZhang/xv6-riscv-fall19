@@ -28,8 +28,11 @@ void
 kinit()
 {
   initlock(&kmem.lock, "kmem");
-  freerange(end, (void*)PHYSTOP);
+
   kmem.ref_count = (uint*)end;
+  uint64 rc_pages = ((((PHYSTOP - (uint64)end) >> 12) + 1) * sizeof(uint) >> 12) + 1;
+  uint64 rc_offset = (uint64)rc_pages << 12;
+  freerange(end + rc_offset, (void*)PHYSTOP);
 }
 
 void
@@ -88,7 +91,7 @@ kref(void *pa){
   uint64 idx = ((uint64)pa - (uint64)end) >> 12;
 
   acquire(&kmem.lock);
-  kmem.ref_count[idx]++;
+  kmem.ref_count[idx]+=2;
   release(&kmem.lock);
 }
 
@@ -103,6 +106,7 @@ kderef(void* pa) {
     free = 1;
   release(&kmem.lock);
 
-  if(free)
+  if(free){
     kfree(pa);
+  }
 }

@@ -197,7 +197,10 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 size, int do_free)
       panic("uvmunmap: not a leaf");
     if(do_free){
       pa = PTE2PA(*pte);
-      kfree((void*)pa);
+      if((PTE_FLAGS(*pte) & PTE_C) != 0)
+        kderef((void*)pa);
+      else
+        kfree((void*)pa);
     }
     *pte = 0;
     if(a == last)
@@ -376,9 +379,26 @@ int
 copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 {
   uint64 n, va0, pa0;
+  pte_t *pte;
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
+
+    if((pte = walk(pagetable, va0, 0)) == 0)
+      panic("copyout: pte should exist");
+
+    if((PTE_FLAGS(*pte) & PTE_C) != 0){
+      char * mem;
+      if((mem = kalloc()) == 0){
+        return -1;
+      }
+      pa0 = PTE2PA(*pte);
+      memmove(mem, (char*)pa0, PGSIZE);
+      *pte = PA2PTE(mem) | PTE_W | PTE_FLAGS(*pte);
+      *pte &= ~PTE_C;
+      kderef((void *)pa0);
+    }
+
     pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0)
       return -1;

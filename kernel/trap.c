@@ -77,15 +77,21 @@ usertrap(void)
   }
   else if(r_scause() == 15 || r_scause() == 13){
     char *mem;
-    uint64 pa;
+    uint64 pa, vpage_head;
     pte_t *pte;
 
+    vpage_head = PGROUNDDOWN(r_stval());
     if((mem = kalloc()) == 0){
       utraperr();
       exit(-1);
     }
 
-    if((pte = walk(p->pagetable, PGROUNDDOWN(r_stval()), 0)) == 0)
+    if(vpage_head > MAXVA){
+      utraperr();
+      exit(-1);
+    }
+    
+    if((pte = walk(p->pagetable, vpage_head, 0)) == 0)
       panic("page default: pte should exist");
 
     if((PTE_FLAGS(*pte) & PTE_C) == 0){
@@ -96,6 +102,7 @@ usertrap(void)
     pa = PTE2PA(*pte);
     memmove(mem, (char*)pa, PGSIZE);
     *pte = PA2PTE(mem) | PTE_W | PTE_FLAGS(*pte);
+    *pte &= ~PTE_C;
 
     kderef((void *)pa);
   }
