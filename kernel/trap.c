@@ -16,6 +16,12 @@ void kernelvec();
 
 extern int devintr();
 
+void utraperr(void){
+  printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), myproc()->pid);
+  printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+  myproc()->killed = 1;
+}
+
 void
 trapinit(void)
 {
@@ -68,14 +74,28 @@ usertrap(void)
   } else if((which_dev = devintr()) != 0){
     // ok
   } else if(r_scause() == 15 || r_scause() == 13){
-      char * mem = kalloc();
+
+      char * mem;
+      
+      if(r_stval() >= p->sz || r_stval() <= p->tf->sp){
+        utraperr();
+        exit(-1);
+      }
+
+      if ((mem = kalloc()) == 0){
+        utraperr();
+        exit(-1);
+      }
+
       memset(mem, 0, PGSIZE);
-      mappages(p->pagetable, PGROUNDDOWN(r_stval()), PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U);
-      p->sz = PGROUNDDOWN(r_stval()) + PGSIZE;
+
+      if(mappages(p->pagetable, PGROUNDDOWN(r_stval()), PGSIZE, (uint64)mem, PTE_W|PTE_X|PTE_R|PTE_U) < 0){
+        utraperr();
+        exit(-1);
+      }
+
   } else{
-    printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
-    printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
-    p->killed = 1;
+    utraperr();
   }
 
   if(p->killed)
