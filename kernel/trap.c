@@ -86,11 +86,11 @@ usertrap(void)
       exit(-1);
     }
 
-    if(vpage_head > MAXVA){
+    if(vpage_head >= myproc()->sz){
       utraperr();
       exit(-1);
     }
-    
+
     if((pte = walk(p->pagetable, vpage_head, 0)) == 0)
       panic("page default: pte should exist");
 
@@ -104,7 +104,7 @@ usertrap(void)
     *pte = PA2PTE(mem) | PTE_W | PTE_FLAGS(*pte);
     *pte &= ~PTE_C;
 
-    kderef((void *)pa);
+    kfree((void *)pa);
   }
   else{
     utraperr();

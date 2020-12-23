@@ -5,6 +5,8 @@
 #include "riscv.h"
 #include "defs.h"
 #include "fs.h"
+#include "spinlock.h"
+#include "proc.h"
 
 /*
  * the kernel's page table.
@@ -197,10 +199,7 @@ uvmunmap(pagetable_t pagetable, uint64 va, uint64 size, int do_free)
       panic("uvmunmap: not a leaf");
     if(do_free){
       pa = PTE2PA(*pte);
-      if((PTE_FLAGS(*pte) & PTE_C) != 0)
-        kderef((void*)pa);
-      else
-        kfree((void*)pa);
+      kfree((void*)pa);
     }
     *pte = 0;
     if(a == last)
@@ -383,7 +382,7 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
-
+    
     if((pte = walk(pagetable, va0, 0)) == 0)
       panic("copyout: pte should exist");
 
@@ -396,7 +395,7 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
       memmove(mem, (char*)pa0, PGSIZE);
       *pte = PA2PTE(mem) | PTE_W | PTE_FLAGS(*pte);
       *pte &= ~PTE_C;
-      kderef((void *)pa0);
+      kfree((void *)pa0);
     }
 
     pa0 = walkaddr(pagetable, va0);

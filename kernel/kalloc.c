@@ -56,12 +56,20 @@ kfree(void *pa)
   if(((uint64)pa % PGSIZE) != 0 || (char*)pa < end || (uint64)pa >= PHYSTOP)
     panic("kfree");
 
+  uint64 idx = ((uint64)pa - (uint64)end) >> 12;
+  acquire(&kmem.lock);
+  
+  if(kmem.ref_count[idx] > 1){
+    kmem.ref_count[idx]--;
+    release(&kmem.lock);
+    return;
+  }
+
   // Fill with junk to catch dangling refs.
   memset(pa, 1, PGSIZE);
 
   r = (struct run*)pa;
 
-  acquire(&kmem.lock);
   r->next = kmem.freelist;
   kmem.freelist = r;
   release(&kmem.lock);
@@ -77,12 +85,18 @@ kalloc(void)
 
   acquire(&kmem.lock);
   r = kmem.freelist;
+
   if(r)
     kmem.freelist = r->next;
   release(&kmem.lock);
 
-  if(r)
-    memset((char*)r, 5, PGSIZE); // fill with junk
+  if(!r)
+    return (void *)r;
+  
+  memset((char*)r, 5, PGSIZE); // fill with junk
+    
+  uint64 idx = ((uint64)r - (uint64)end) >> 12;
+  kmem.ref_count[idx] = 1;
   return (void*)r;
 }
 
@@ -91,22 +105,6 @@ kref(void *pa){
   uint64 idx = ((uint64)pa - (uint64)end) >> 12;
 
   acquire(&kmem.lock);
-  kmem.ref_count[idx]+=2;
+  kmem.ref_count[idx]++;
   release(&kmem.lock);
-}
-
-void
-kderef(void* pa) {
-  uint64 idx = ((uint64)pa - (uint64)end) >> 12;
-  char free = 0;
-
-  acquire(&kmem.lock);
-  kmem.ref_count[idx]--;
-  if(kmem.ref_count[idx] == 0)
-    free = 1;
-  release(&kmem.lock);
-
-  if(free){
-    kfree(pa);
-  }
 }
