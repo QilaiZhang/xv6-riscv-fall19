@@ -16,6 +16,12 @@ void kernelvec();
 
 extern int devintr();
 
+void utraperr(void){
+  printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), myproc()->pid);
+  printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+  myproc()->killed = 1;
+}
+
 void
 trapinit(void)
 {
@@ -65,12 +71,36 @@ usertrap(void)
     intr_on();
 
     syscall();
-  } else if((which_dev = devintr()) != 0){
+  }
+  else if((which_dev = devintr()) != 0){
     // ok
-  } else {
-    printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
-    printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
-    p->killed = 1;
+  }
+  else if(r_scause() == 15 || r_scause() == 13){
+    char *mem;
+    uint64 pa;
+    pte_t *pte;
+
+    if((mem = kalloc()) == 0){
+      utraperr();
+      exit(-1);
+    }
+
+    if((pte = walk(p->pagetable, PGROUNDDOWN(r_stval()), 0)) == 0)
+      panic("page default: pte should exist");
+
+    if((PTE_FLAGS(*pte) & PTE_C) == 0){
+      utraperr();
+      exit(-1);
+    }
+
+    pa = PTE2PA(*pte);
+    memmove(mem, (char*)pa, PGSIZE);
+    *pte = PA2PTE(mem) | PTE_W | PTE_FLAGS(*pte);
+
+    kderef((void *)pa);
+  }
+  else{
+    utraperr();
   }
 
   if(p->killed)

@@ -21,6 +21,7 @@ struct run {
 struct {
   struct spinlock lock;
   struct run *freelist;
+  uint *ref_count;
 } kmem;
 
 void
@@ -28,6 +29,7 @@ kinit()
 {
   initlock(&kmem.lock, "kmem");
   freerange(end, (void*)PHYSTOP);
+  kmem.ref_count = (uint*)end;
 }
 
 void
@@ -79,4 +81,28 @@ kalloc(void)
   if(r)
     memset((char*)r, 5, PGSIZE); // fill with junk
   return (void*)r;
+}
+
+void
+kref(void *pa){
+  uint64 idx = ((uint64)pa - (uint64)end) >> 12;
+
+  acquire(&kmem.lock);
+  kmem.ref_count[idx]++;
+  release(&kmem.lock);
+}
+
+void
+kderef(void* pa) {
+  uint64 idx = ((uint64)pa - (uint64)end) >> 12;
+  char free = 0;
+
+  acquire(&kmem.lock);
+  kmem.ref_count[idx]--;
+  if(kmem.ref_count[idx] == 0)
+    free = 1;
+  release(&kmem.lock);
+
+  if(free)
+    kfree(pa);
 }
