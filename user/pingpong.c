@@ -11,10 +11,13 @@ main (int argc, char *argv[]) {
 
     int pid = fork();
     if (pid) {
+        // 父进程
         write(parent_fd[1], "ping", 4);
         read(child_fd[0], buf, 4);
         printf("%d: received %s\n", getpid(), buf);
+        wait();
     } else if(pid == 0){
+        // 子进程
         read(parent_fd[0], buf, 4);
         printf("%d: received %s\n", getpid(), buf);
         write(child_fd[1], "pong", 4);

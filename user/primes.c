@@ -53,7 +53,7 @@ int main (int argc, char *argv[]) {
     pid = fork();
     if(pid > 0){
         // main process write numbers between 2 and 35
-        close(fd[0]);
+        close(fd[0]);   // close read pipe
         for(int i = 2; i <= 35; i++){
             write(fd[1], &i, sizeof(i));
         }
