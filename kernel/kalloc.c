@@ -88,7 +88,7 @@ kalloc(void)
   while(!kmems[uid].freelist){
     uid = (uid + 1) % NCPU;
     if(uid == getuid()){
-      break;
+      return 0;
     }
   }
   acquire(&kmems[uid].lock);
