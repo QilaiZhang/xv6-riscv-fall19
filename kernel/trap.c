@@ -78,7 +78,7 @@ usertrap(void)
 
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2){
-    if(ticks - p->alarm_last_tick > p->alarm_interval){
+    if(p->alarm_interval != 0 && ticks - p->alarm_last_tick >= p->alarm_interval){
       p->alarm_state = ALARM_HANDLE;
       p->alarm_tf = *p->tf;
       p->tf->epc = p->alarm_handler;
