@@ -21,7 +21,7 @@ void vmprint(pagetable_t, int);
 
 void vmprint(pagetable_t pagetable, int num){
   if(num == 1){
-    printf("page table 0x%p\n", pagetable);
+    printf("page table %p\n", pagetable);
   }
   
   for(int i = 0; i < 512; i++){
@@ -31,7 +31,7 @@ void vmprint(pagetable_t pagetable, int num){
       for(int i = 0; i < num; i++){
         printf(" ..");
       }
-      printf("%d: pte 0x%p pa 0x%p\n",i, pte, child);
+      printf("%d: pte %p pa %p\n",i, pte, child);
       if((pte & (PTE_R|PTE_W|PTE_X)) == 0){
         vmprint((pagetable_t)child, num+1);
       }
