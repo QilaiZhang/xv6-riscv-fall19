@@ -1,7 +1,5 @@
-#define PROT_READ   0x01
-#define PROT_WRITE  0x02
+#define PROT_READ   (1L << 1)
+#define PROT_WRITE  (1L << 2)
 
-#define MAP_PRIVATE 0x01
-#define MAP_SHARED  0x02
-
-#define MAP_FAIL_ADDR ((uint64)-1)
+#define MAP_PRIVATE (1L << 1)
+#define MAP_SHARED  (1L << 2)

@@ -8,6 +8,7 @@
 #include "file.h"
 #include "proc.h"
 #include "defs.h"
+#include "mmap.h"
 
 struct cpu cpus[NCPU];
 
@@ -122,6 +123,12 @@ found:
   memset(&p->context, 0, sizeof p->context);
   p->context.ra = (uint64)forkret;
   p->context.sp = p->kstack + PGSIZE;
+
+  // init vma
+  for(int i = 0; i < NVMA; i++){
+    p->vma[i].valid = 1;
+  }
+  p->maxva = VMASTART;
 
   return p;
 }
@@ -265,6 +272,14 @@ fork(void)
 
   np->parent = p;
 
+  
+  for (int i = NVMA - 1; i >= 0; i--)
+  {
+    if(!p->vma[i].valid && p->vma[i].file)
+      p->vma[i].file->ref++;
+    np->vma[i] = p->vma[i];
+  }
+
   // copy saved user registers.
   *(np->tf) = *(p->tf);
 
@@ -324,6 +339,24 @@ exit(int status)
 
   if(p == initproc)
     panic("init exiting");
+
+  struct VMA *vma;
+  for(int i = 0; i < NVMA; i++){
+    vma = &p->vma[i];
+    if(!vma->valid){
+      if(walkaddr(p->pagetable, vma->start)){
+        if(vma->flags == MAP_SHARED){
+          filewrite(vma->file, vma->start, vma->end - vma->start);
+        }
+        printf("pa: %p\n",walkaddr(p->pagetable, vma->start));
+        printf("length: %d\n",vma->end - vma->start);
+        uvmunmap(p->pagetable, vma->start, vma->end - vma->start ,1);
+      }
+      vma->file->ref--;
+      vma->valid = 1;
+    }
+  }
+  p->maxva = VMASTART;
 
   // Close all open files.
   for(int fd = 0; fd < NOFILE; fd++){

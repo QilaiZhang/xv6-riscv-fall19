@@ -4,6 +4,9 @@
 #include "riscv.h"
 #include "spinlock.h"
 #include "proc.h"
+#include "sleeplock.h"
+#include "fs.h"
+#include "file.h"
 #include "defs.h"
 
 struct spinlock tickslock;
@@ -70,20 +73,62 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+  } else if(r_scause() == 13 || r_scause () == 15){
+    uint64 va = PGROUNDDOWN(r_stval());
+    struct VMA* vma = 0;
+    char *mem;
+
+    // find revelant vma
+    for(int i = 0; i < NVMA; i++){
+      if(p->vma[i].valid == 0 && p->vma[i].start <= va && va <= p->vma[i].end){
+          vma = &p->vma[i];
+          break;
+        }
+    }
+
+    if(!vma){
+      goto err;
+    }
+
+    if((mem = kalloc()) == 0){
+      goto err;
+    }
+
+    if(mappages(p->pagetable, va, PGSIZE, (uint64)mem, vma->prot | PTE_U | PTE_X) < 0){
+      printf("mappages failed.\n");
+      kfree(mem);
+      goto err;
+    }
+    struct file *f = vma->file;
+    int offset = va - vma->start;
+    
+    ilock(f->ip);
+    if(readi(f->ip, 1, va, offset, PGSIZE) != PGSIZE){
+      iunlock(f->ip);
+      goto err;
+    }
+    iunlock(f->ip);
+    exit(-1);
   } else {
-    printf("usertrap(): unexpected scause %p (%s) pid=%d\n", r_scause(), scause_desc(r_scause()), p->pid);
-    printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
-    p->killed = 1;
+    goto err;
   }
 
-  if(p->killed)
+  if(p->killed == 1){
     exit(-1);
+  }
 
   // give up the CPU if this is a timer interrupt.
   if(which_dev == 2)
     yield();
 
   usertrapret();
+  return;
+
+err:
+  printf("usertrap(): unexpected scause %p (%s) pid=%d\n", r_scause(), scause_desc(r_scause()), p->pid);
+  printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
+  p->killed = 1;
+  exit(-1);
 }
 
 //
