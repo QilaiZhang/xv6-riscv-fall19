@@ -348,8 +348,6 @@ exit(int status)
         if(vma->flags == MAP_SHARED){
           filewrite(vma->file, vma->start, vma->end - vma->start);
         }
-        printf("pa: %p\n",walkaddr(p->pagetable, vma->start));
-        printf("length: %d\n",vma->end - vma->start);
         uvmunmap(p->pagetable, vma->start, vma->end - vma->start ,1);
       }
       vma->file->ref--;

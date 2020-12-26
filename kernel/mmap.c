@@ -42,6 +42,10 @@ sys_mmap(){
   if(addr != 0 || offset != 0)
     panic("sys_map: not zero");
 
+  if(!f->writable && (prot & PROT_WRITE) && (flags & MAP_SHARED)){
+    return -1;
+  }
+
   if((vma = map_alloc()) == 0){
     return -1;
   }

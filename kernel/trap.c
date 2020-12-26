@@ -91,8 +91,10 @@ usertrap(void)
     }
 
     if((mem = kalloc()) == 0){
+      printf("kalloc failed\n");
       goto err;
     }
+    memset(mem, 0, PGSIZE);
 
     if(mappages(p->pagetable, va, PGSIZE, (uint64)mem, vma->prot | PTE_U | PTE_X) < 0){
       printf("mappages failed.\n");
@@ -103,12 +105,12 @@ usertrap(void)
     int offset = va - vma->start;
     
     ilock(f->ip);
-    if(readi(f->ip, 1, va, offset, PGSIZE) != PGSIZE){
+    if(readi(f->ip, 1, va, offset, PGSIZE) < 0){
+      printf("readi failed\n");
       iunlock(f->ip);
       goto err;
     }
     iunlock(f->ip);
-    exit(-1);
   } else {
     goto err;
   }
