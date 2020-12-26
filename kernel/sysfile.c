@@ -165,24 +165,6 @@ bad:
   return -1;
 }
 
-uint64
-sys_symlink(void)
-{
-  char target[MAXPATH], path[MAXPATH];
-  int fd;
-  struct file *f;
-  struct inode *ip;
-
-  if(argstr(0, target, MAXPATH) < 0 || argstr(1, path, MAXPATH) < 0)
-    return -1;
-
-
-
-
-
-  return 0;
-}
-
 // Is the directory dp empty except for "." and ".." ?
 static int
 isdirempty(struct inode *dp)
@@ -333,6 +315,47 @@ sys_open(void)
       return -1;
     }
   }
+
+  if(!(omode & O_NOFOLLOW) && ip->type == T_SYMLINK){
+    uint len;
+    char sym_path[MAXPATH];
+    int cnt = 0;
+    while(ip->type == T_SYMLINK){
+      if(readi(ip, 0, (uint64)&len, 0, sizeof(uint)) != sizeof(uint)){
+        panic("sys_open: readi len");
+      }
+      if(len >= MAXPATH){
+        panic("sys_open: over maxpath");
+      }
+      if(readi(ip, 0, (uint64)sym_path, sizeof(uint), len) != len){
+        panic("sys_open: readi path");
+      }
+      sym_path[len] = '\0';
+      if(strncmp(path, sym_path, strlen(path)) == 0){
+        iunlockput(ip);
+        end_op(ROOTDEV);
+        return -1;
+      }
+      cnt++;
+      if(cnt >= 10){
+        iunlockput(ip);
+        end_op(ROOTDEV);
+        return -1;
+      }
+      iunlockput(ip);
+      if((ip = namei(sym_path)) == 0){
+        end_op(ROOTDEV);
+        return -1;
+      }
+      ilock(ip);
+      if(ip->type == T_DIR && omode != O_RDONLY){
+        iunlockput(ip);
+        end_op(ROOTDEV);
+        return -1;
+      }
+    }
+  }
+
 
   if(ip->type == T_DEVICE && (ip->major < 0 || ip->major >= NDEV)){
     iunlockput(ip);
@@ -498,6 +521,37 @@ sys_pipe(void)
     fileclose(wf);
     return -1;
   }
+  return 0;
+}
+
+uint64
+sys_symlink(void)
+{
+  char target[MAXPATH];
+  char path[MAXPATH];
+  struct inode *ip;
+  uint len;
+
+  if((argstr(0, target, MAXPATH)) < 0 || argstr(1, path, MAXPATH) < 0)
+    return -1;
+
+  len = strlen(target);
+  begin_op(ROOTDEV);
+
+  ip = create(path, T_SYMLINK, 0, 0);
+  if(ip == 0){
+    end_op(ROOTDEV);
+    return -1;
+  }
+  if(writei(ip, 0, (uint64)&len, 0, sizeof(uint)) != sizeof(uint)){
+    panic("sys_symlink: writei len");
+  }
+  if(writei(ip, 0, (uint64)target, sizeof(uint), len) != len){
+    panic("sys_symlink: writei target");
+  }
+
+  iunlockput(ip);
+  end_op(ROOTDEV);
   return 0;
 }
 
